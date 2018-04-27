@@ -1,0 +1,11 @@
+---
+
+- name: common provisioning steps for master and slave
+  hosts: all:127.0.0.1
+  connection: local
+  become: yes
+
+  tasks:
+
+  - name: do nothing
+    shell: echo hello world

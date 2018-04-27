@@ -1,0 +1,208 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Useful plugins:
+# - vagrant-sahara  -- Manage snapshots. Restore from snapshot in worst case.
+# - vagrant-cachier -- Cache certain directories between VMs. Speed up!
+# - vagrant-vbguest -- Update Vbox guest additions on VMs to match host.
+
+# Fix old vagrant versions pointing to dead atlas.hashicorp basebox URLs
+# See: https://github.com/hashicorp/vagrant/issues/9442
+Vagrant::DEFAULT_SERVER_URL.replace('https://vagrantcloud.com')
+
+# Set Virtualbox as the default provider
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
+
+# Disable launching VMs in parallel.
+# Reason: Some VMs might depend on a shared mount on another, ..etc)
+# Also, to prevent network race conditions.
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+
+# Necessary to enable linked disk clones
+Vagrant.require_version ">= 1.8.0"
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
+
+  # Every Vagrant development environment requires a box. You can search for
+  # boxes at https://atlas.hashicorp.com/search.
+  config.vm.box = "{{cookiecutter.box}}"
+
+  # Restrict vagrant box version
+  config.vm.box_version = "{{cookiecutter.box_version}}"
+
+  slave_cpus = {{cookiecutter.slave_cpus}}
+  slave_ram = {{cookiecutter.slave_memory}}
+  master_cpus = slave_cpus * 2
+  master_ram = slave_ram * 2
+
+  # Use the virtualbox provider with some common settings
+  config.vm.provider "virtualbox" do |v|
+    # Enable differential disk images for VMs w.r.t. base box VM.
+    v.linked_clone = true
+
+    v.cpus = slave_cpus
+    v.memory = slave_ram
+    v.gui = false
+
+    # Workaround Ubuntu 16.04 issue with Virtualbox where Box waits 5 minutes to start if network "cable" is not connected.
+    # https://github.com/chef/bento/issues/682
+    v.customize ["modifyvm", :id, "--cableconnected1", "on"]
+
+    # You can have various customizations below for all VMs
+    # v.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+
+  end
+
+  # Share current project directory under /vagrant on the guest
+  # Use "ro" because we don't want to sync ephemeral files from VM back to host.
+  config.vm.synced_folder ".", "/vagrant", type: "virtualbox", disabled: false, mount_options: ["ro"]
+
+  # If you want to use rsync to perform host -> VM sync only...
+  # config.vm.synced_folder ".", "/vagrant", type: "rsync", disabled: false, rsync__auto: true, mount_options: ["ro"]
+
+  # Vagrant VBox guest additions updater
+  if Vagrant.has_plugin?("vagrant-vbguest")
+    # Do not auto-install guest additions. Only check versions
+    config.vbguest.no_install = true
+  end
+
+  # Vagrant cachier
+  if Vagrant.has_plugin?("vagrant-cachier")
+    # Configure cached packages to be shared between instances of the same base box.
+    # More info on http://fgrehm.viewdocs.io/vagrant-cachier/usage
+    config.cache.scope = :box
+
+    # OPTIONAL: If you are using VirtualBox, you might want to use that to enable
+    # NFS for shared folders. This is also very useful for vagrant-libvirt if you
+    # want bi-directional sync
+    # config.cache.synced_folder_opts = {
+    #   type: :nfs,
+    #   # The nolock option can be useful for an NFSv3 client that wants to avoid the
+    #   # NLM sideband protocol. Without this option, apt-get might hang if it tries
+    #   # to lock files needed for /var/cache/* operations. All of this can be avoided
+    #   # by using NFSv4 everywhere. Please note that the tcp option is not the default.
+    #   mount_options: ['rw', 'vers=3', 'tcp', 'nolock']
+    # }
+
+    # Enable virtualbox shared folders to sync caches.
+    # *** This requires the vbox shared folder option ***
+    # You could also use vagrant-vbguest to install guest additions in VMs spin off boxes which do not have them.
+    config.cache.synced_folder_opts = {
+      type: "virtualbox"
+    }
+    # For more information please check http://docs.vagrantup.com/v2/synced-folders/basic_usage.html
+
+    config.cache.auto_detect = false
+    config.cache.enable :apt
+    config.cache.enable :apt_lists
+    config.cache.enable :apt_cacher
+    # Pip plugin was not included in the recent release.
+    # See: https://github.com/fgrehm/vagrant-cachier/issues/159
+    # config.cache.enable :pip
+
+    config.cache.enable :generic, {
+      # Be careful not to cache /opt because /opt/VirtualboxGuestAdditions is necessary for the vboxsf module to load. Without vboxsf, vagrant will error out when attempting to mount the shared folders. The shared folders step happens at a much earlier stage than vagrant-cachier.
+      # Most wget and curl downloads go here.
+      "opt-downloads" => { cache_dir: "/opt/downloads" },
+      "python-dist-packages" => { cache_dir: "/usr/local/lib/python2.7" },
+      "python-pip-http" => { cache_dir: "/root/.cache/pip" }
+    }
+
+  end
+
+  # Common provisioning shells for all VMs.
+  config.vm.provision "shell", path: "./provision.sh"
+
+  config.vm.provision "ansible_local" do |ansible|
+    ansible.playbook = "./playbook.yml"
+  end
+
+  config.vm.define "master" do |master|
+    master.vm.provider :virtualbox do |v|
+        v.memory = master_ram
+        v.cpus = master_cpus
+    end
+    master.vm.hostname = "master"
+    master.vm.network "private_network", ip: "192.168.0.254", netmask: "255.255.255.0",
+      virtualbox__intnet: "{{cookiecutter.internal_netw_name}}"
+    # Host-only network for querying the master from the host system
+    master.vm.network "private_network", ip: "{{cookiecutter.master_host_only_ip}}", netmask: "255.255.255.0"
+  end
+
+  (1..{{cookiecutter.num_slaves}}).each do |i|
+
+    config.vm.define "slave-#{i}" do |slave|
+      slave.vm.hostname = "slave-#{i}"
+      slave.vm.network "private_network", ip: "192.168.0.#{i+1}", netmask: "255.255.255.0",
+        virtualbox__intnet: "{{cookiecutter.internal_netw_name}}"
+    end
+  end
+
+  # Disable automatic box update checking. If you disable this, then
+  # boxes will only be checked for updates when the user runs
+  # `vagrant box outdated`. This is not recommended.
+  # config.vm.box_check_update = false
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # NOTE: This will enable public access to the opened port
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine and only allow access
+  # via 127.0.0.1 to disable public access
+  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  # config.vm.network "private_network", ip: "192.168.33.10"
+
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network "public_network"
+
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  # config.vm.synced_folder "../data", "/vagrant_data"
+
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  # config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+  #   vb.gui = true
+  #
+  #   # Customize the amount of memory on the VM:
+  #   vb.memory = "1024"
+  # end
+  #
+  # View the documentation for the provider you are using for more
+  # information on available options.
+
+  # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
+  # such as FTP and Heroku are also available. See the documentation at
+  # https://docs.vagrantup.com/v2/push/atlas.html for more information.
+  # config.push.define "atlas" do |push|
+  #   push.app = "YOUR_ATLAS_USERNAME/YOUR_APPLICATION_NAME"
+  # end
+
+  # Enable provisioning with a shell script. Additional provisioners such as
+  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
+  # documentation for more information about their specific syntax and use.
+  # config.vm.provision "shell", inline: <<-SHELL
+  #   apt-get update
+  #   apt-get install -y apache2
+  # SHELL
+end
