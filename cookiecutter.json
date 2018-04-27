@@ -2,6 +2,7 @@
     "dir_name": ".",
     "box": "bento/debian-8",
     "box_version": "201803.24.0",
+    "box_sha256_checksum": "edf4cfa4d5e5b26b0eaaf5c4c812f735e710a87dfde9ec9ee74c89ed18331018",
     "slave_cpus": "1",
     "slave_memory": "1024",
     "num_slaves": "2",
