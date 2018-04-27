@@ -8,7 +8,9 @@
 
 # Fix old vagrant versions pointing to dead atlas.hashicorp basebox URLs
 # See: https://github.com/hashicorp/vagrant/issues/9442
-Vagrant::DEFAULT_SERVER_URL.replace('https://vagrantcloud.com')
+unless Vagrant::DEFAULT_SERVER_URL.frozen?
+  Vagrant::DEFAULT_SERVER_URL.replace('https://vagrantcloud.com')
+end
 
 # Set Virtualbox as the default provider
 ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
