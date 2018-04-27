@@ -20,6 +20,9 @@ ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
 # Also, to prevent network race conditions.
 ENV['VAGRANT_NO_PARALLEL'] = 'yes'
 
+# Disable creating symlinks in synced folders because we don't trust VMs
+ENV['VAGRANT_DISABLE_VBOXSYMLINKCREATE'] = '1'
+
 # Necessary to enable linked disk clones
 Vagrant.require_version ">= 1.8.0"
 
