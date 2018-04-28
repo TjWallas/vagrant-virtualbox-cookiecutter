@@ -83,6 +83,7 @@ Vagrant.configure("2") do |config|
   # Vagrant VBox guest additions updater
   if Vagrant.has_plugin?("vagrant-vbguest")
     # Do not auto-install guest additions. Only check versions
+    # It is much smarter to update guest additions on the base-box itself!
     config.vbguest.no_install = true
   end
 
