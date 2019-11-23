@@ -65,26 +65,6 @@ _get_abs_script_path() {
 
 # Code begins here...
 
-update_apt_sources() {
-
-    # Apt keys
-    info "Adding apt keys..."
-    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 93C4A3FD7BB9C367
-
-    # Apt repos
-    info "Adding apt repos..."
-    echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu trusty main" > /etc/apt/sources.list.d/ansible.list
-
-    # Update apt
-    info "Updating apt..."
-    apt-get install -y apt-transport-https ca-certificates wget software-properties-common
-    apt-get update
-}
-
-install_ansible() {
-    apt-get -y install ansible
-}
-
 main() {
 
     # Script goes here
@@ -94,9 +74,12 @@ main() {
     #  $FILENAME: Script filename
     # ...
     assert_running_as_root
-    export DEBIAN_FRONTEND=noninteractive
-    update_apt_sources
-    install_ansible
+
+    export PROJ_ROOT="$1"
+
+    bash "$PROJ_ROOT"/provision.sh
+
+    ansible-playbook "$PROJ_ROOT/playbook.yml"
 
     return
 }
@@ -106,4 +89,3 @@ if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
     _get_abs_script_path
     main "$@"
 fi
-
