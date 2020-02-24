@@ -132,7 +132,8 @@ Vagrant.configure("2") do |config|
       # Most wget and curl downloads go here.
       "opt-downloads" => { cache_dir: "/opt/downloads" },
       "python-dist-packages" => { cache_dir: "/usr/local/lib/python2.7" },
-      "python-pip-http" => { cache_dir: "/root/.cache/pip" }
+      "python3-dist-packages" => { cache_dir: "/usr/local/lib/python3.5" },
+      "python-pip-http" => { cache_dir: "/home/vagrant/.cache/pip" }
     }
 
   end
