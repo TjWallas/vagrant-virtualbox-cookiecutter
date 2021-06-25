@@ -46,10 +46,10 @@ Vagrant.configure("2") do |config|
   config.vm.box_version = "{{cookiecutter.box_version}}"
 
   # Perform checksum checking after the box is downloaded.
-  config.vm.box_download_checksum = "{{cookiecutter.box_sha256_checksum}}"
+  # config.vm.box_download_checksum = "{{cookiecutter.box_sha256_checksum}}"
 
   # Use sha256 as a more secure hash for comparing box checksums
-  config.vm.box_download_checksum_type = "sha256"
+  # config.vm.box_download_checksum_type = "sha256"
 
   slave_cpus = {{cookiecutter.slave_cpus}}
   slave_ram = {{cookiecutter.slave_memory}}
